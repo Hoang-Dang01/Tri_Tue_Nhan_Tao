@@ -3,252 +3,88 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Phân Tích & Phát Hiện URL Độc Hại - LightGBM</title>
-    <!-- Google Fonts: Outfit -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <!-- FontAwesome for Icons -->
+    <title>Phát Hiện URL Độc Hại - LightGBM</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Main Style Sheet -->
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <div class="stars"></div>
-    <div class="glowing-orb orb-1"></div>
-    <div class="glowing-orb orb-2"></div>
-
-    <div class="app-container">
+    <div class="container">
         <!-- Header -->
-        <header class="app-header">
-            <div class="logo-area">
-                <div>
-                    <h1>Phân Tích & Phát Hiện URL Độc Hại</h1>
-                    <p class="subtitle">Hệ Thống Nhận Diện URL Giả Mạo Sử Dụng Mô Hình LightGBM</p>
-                </div>
-            </div>
-            <div class="model-badge">
-                <span class="badge-icon"><i class="fa-solid fa-brain"></i></span>
-                <span class="badge-text" id="modelTypeBadge">LightGBM Model v1.0</span>
-            </div>
+        <header class="header">
+            <h1><i class="fas fa-shield-alt"></i> Phát Hiện URL Độc Hại</h1>
+            <p class="subtitle">Kiểm tra URL có phải phishing hay không bằng LightGBM</p>
         </header>
 
-        <!-- Main Dashboard -->
-        <main class="dashboard-grid">
-            <!-- Left Panel: Input & Control -->
-            <section class="control-panel glass-card">
-                <h2><i class="fa-solid fa-wand-magic-sparkles section-icon"></i> Phân Tích URL Mới</h2>
-                <form id="analyzeForm" class="analysis-form">
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Input Section -->
+            <section class="card input-section">
+                <h2>📝 Nhập URL để kiểm tra</h2>
+                <form id="analyzeForm">
                     <div class="input-group">
-                        <label for="urlInput">Địa chỉ URL cần kiểm tra</label>
-                        <div class="input-wrapper">
-                            <i class="fa-solid fa-link input-prefix-icon"></i>
-                            <input type="text" id="urlInput" placeholder="https://example.com/login" required autocomplete="off">
-                            <button type="submit" id="analyzeBtn" class="primary-btn">
-                                <span class="btn-text">Phân Tích</span>
-                                <span class="btn-loader hidden"><i class="fa-solid fa-spinner fa-spin"></i></span>
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Accordion: Advanced Settings -->
-                    <div class="advanced-settings">
-                        <div class="settings-header" id="settingsToggle">
-                            <span><i class="fa-solid fa-sliders"></i> Cài Đặt Nâng Cao</span>
-                            <i class="fa-solid fa-chevron-down toggle-arrow"></i>
-                        </div>
-                        <div class="settings-content hidden" id="settingsContent">
-                            <div class="setting-item">
-                                <div class="setting-info">
-                                    <label for="thresholdInput">Ngưỡng Quyết Định (Threshold)</label>
-                                    <span class="tooltip" data-tooltip="Giá trị xác suất tối thiểu để kết luận URL là độc hại. Ngưỡng thấp hơn sẽ nhạy hơn nhưng dễ sai sót.">
-                                        <i class="fa-regular fa-circle-question"></i>
-                                    </span>
-                                </div>
-                                <div class="slider-wrapper">
-                                    <input type="range" id="thresholdInput" min="0.0" max="1.0" step="0.01" value="0.76">
-                                    <span class="slider-value" id="thresholdVal">0.76</span>
-                                </div>
-                                <div class="helper-text">Mặc định mô hình tối ưu: <span id="modelDefaultThreshold">0.764</span></div>
-                            </div>
-
-                            <div class="setting-item checkbox-item">
-                                <div class="checkbox-wrapper">
-                                    <input type="checkbox" id="includePageInput">
-                                    <label for="includePageInput">
-                                        <span class="checkbox-custom"></span>
-                                        Tải nội dung trang web (Fetch Page HTML)
-                                    </label>
-                                </div>
-                                <span class="tooltip" data-tooltip="Gửi request tải mã nguồn HTML của trang web để trích xuất các đặc trưng nội dung (độ trễ ~3-8 giây).">
-                                    <i class="fa-regular fa-circle-question"></i>
-                                </span>
-                            </div>
-                        </div>
+                        <input type="text" id="urlInput" 
+                               placeholder="Ví dụ: https://example.com" 
+                               required 
+                               autocomplete="off">
+                        <button type="submit" id="analyzeBtn" class="btn-primary">
+                            <span class="btn-text">Phân Tích</span>
+                            <span class="btn-loader hidden">
+                                <i class="fas fa-spinner fa-spin"></i>
+                            </span>
+                        </button>
                     </div>
                 </form>
-
-                <!-- Quick Examples -->
-                <div class="examples-section">
-                    <h3>Gợi ý URL Test nhanh:</h3>
-                    <div class="example-tags">
-                        <span class="tag tag-safe" data-url="https://courses.ut.edu.vn/mod/quiz/attempt.php?attempt=2671947&cmid=273108&page=5">
-                            <i class="fa-solid fa-circle-check"></i> Học tập (An toàn)
-                        </span>
-                        <span class="tag tag-safe" data-url="https://www.youtube.com/watch?v=piXKzrhi6L0">
-                            <i class="fa-solid fa-circle-check"></i> Youtube (An toàn)
-                        </span>
-                        <span class="tag tag-danger" data-url="http://allegrolokalnie.pl-oferta73901248.cfd">
-                            <i class="fa-solid fa-circle-exclamation"></i> CFd Phishing (Độc hại)
-                        </span>
-                        <span class="tag tag-danger" data-url="https://claim-fantom-72h.com/FS24fvV243AQQ">
-                            <i class="fa-solid fa-circle-exclamation"></i> Claim Phishing (Độc hại)
-                        </span>
-                    </div>
+                <div class="helper-text">
+                    💡 Ví dụ test: 
+                    <a href="javascript:void(0)" class="example-link" data-url="https://www.google.com">Google</a> | 
+                    <a href="javascript:void(0)" class="example-link" data-url="http://allegrolokalnie.pl-oferta73901248.cfd">Phishing</a>
                 </div>
             </section>
 
-            <!-- Right Panel: Results & Stats -->
-            <section class="results-panel glass-card" id="resultsPanel">
-                <!-- Welcome/Initial Placeholder -->
-                <div class="placeholder-state" id="placeholderState">
-                    <div class="radar-scan">
-                        <div class="radar-line"></div>
-                        <i class="fa-solid fa-circle-nodes scan-icon"></i>
-                    </div>
-                    <h3>Sẵn Sàng Quét</h3>
-                    <p>Nhập địa chỉ trang web ở bảng điều khiển bên trái để bắt đầu phân tích độ tin cậy bằng mô hình LightGBM.</p>
+            <!-- Results Section (Hidden by default) -->
+            <section class="card results-section hidden" id="resultsSection">
+                <div class="result-verdict" id="resultVerdict">
+                    <!-- Verdict will be rendered here -->
                 </div>
 
-                <!-- Live Analyzing Loading State -->
-                <div class="loading-state hidden" id="loadingState">
-                    <div class="dna-spinner">
-                        <div class="double-bounce1"></div>
-                        <div class="double-bounce2"></div>
-                    </div>
-                    <h3>Đang Phân Tích Dữ Liệu...</h3>
-                    <p id="loadingMsg">Đang phân tích cấu trúc URL...</p>
+                <!-- Features Table -->
+                <div class="features-area">
+                    <h3>📊 Chi tiết phân tích</h3>
+                    <table id="featuresTable">
+                        <thead>
+                            <tr>
+                                <th>Đặc trưng</th>
+                                <th>Giá trị</th>
+                                <th>Ghi chú</th>
+                            </tr>
+                        </thead>
+                        <tbody id="featuresBody">
+                            <!-- Rows will be added here -->
+                        </tbody>
+                    </table>
                 </div>
 
-                <!-- Result Content -->
-                <div class="result-content hidden" id="resultContent">
-                    <div class="verdict-header">
-                        <!-- Verdict Card -->
-                        <div class="verdict-card" id="verdictCard">
-                            <div class="verdict-icon-container">
-                                <i class="fa-solid fa-circle-info" id="verdictIcon"></i>
-                            </div>
-                            <div class="verdict-info">
-                                <span class="verdict-label">KẾT QUẢ ĐÁNH GIÁ</span>
-                                <h3 id="verdictTitle">An Toàn</h3>
-                                <p id="verdictDesc">URL không hiển thị các đặc tính giả mạo phổ biến.</p>
-                            </div>
-                        </div>
+                <!-- Clear Button -->
+                <button type="button" class="btn-secondary" id="clearBtn">
+                    ↻ Kiểm tra URL mới
+                </button>
+            </section>
 
-                        <!-- Gauge Card -->
-                        <div class="gauge-card">
-                            <div class="svg-container">
-                                <svg class="gauge-svg" viewBox="0 0 100 100">
-                                    <circle class="gauge-track" cx="50" cy="50" r="40"></circle>
-                                    <circle class="gauge-fill" cx="50" cy="50" r="40" id="gaugeFill" stroke-dasharray="251.2" stroke-dashoffset="251.2"></circle>
-                                </svg>
-                                <div class="gauge-percentage">
-                                    <span id="gaugePercentageVal">0%</span>
-                                    <span class="pct-label">Độ độc hại</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Highlights Grid -->
-                    <div class="highlights-grid">
-                        <div class="highlight-item" id="hlHttps">
-                            <span class="hl-icon"><i class="fa-solid fa-lock"></i></span>
-                            <div class="hl-details">
-                                <span class="hl-title">HTTPS</span>
-                                <span class="hl-val" id="hlHttpsVal">Có</span>
-                            </div>
-                        </div>
-                        <div class="highlight-item" id="hlEntropy">
-                            <span class="hl-icon"><i class="fa-solid fa-chart-line"></i></span>
-                            <div class="hl-details">
-                                <span class="hl-title">Độ Entropy</span>
-                                <span class="hl-val" id="hlEntropyVal">0.00</span>
-                            </div>
-                        </div>
-                        <div class="highlight-item" id="hlLength">
-                            <span class="hl-icon"><i class="fa-solid fa-text-width"></i></span>
-                            <div class="hl-details">
-                                <span class="hl-title">Độ dài URL</span>
-                                <span class="hl-val" id="hlLengthVal">0 ký tự</span>
-                            </div>
-                        </div>
-                        <div class="highlight-item" id="hlTld">
-                            <span class="hl-icon"><i class="fa-solid fa-globe"></i></span>
-                            <div class="hl-details">
-                                <span class="hl-title">Tên miền TLD</span>
-                                <span class="hl-val" id="hlTldVal">Thường</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Tabs Area -->
-                    <div class="details-section">
-                        <div class="tabs-header">
-                            <button class="tab-btn active" data-tab="urlTab"><i class="fa-solid fa-link"></i> Đặc Trưng URL</button>
-                            <button class="tab-btn disabled" id="pageTabBtn" data-tab="pageTab"><i class="fa-solid fa-code"></i> Đặc Trưng HTML/Nội Dung</button>
-                        </div>
-                        <div class="tabs-body">
-                            <!-- URL Features Tab -->
-                            <div class="tab-panel active" id="urlTab">
-                                <div class="table-container">
-                                    <table class="features-table">
-                                        <thead>
-                                            <tr>
-                                                <th>Mã Đặc Trưng</th>
-                                                <th>Giá Trị</th>
-                                                <th>Ý Nghĩa / Mô Tả</th>
-                                                <th>Trạng Thái</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="urlFeaturesTableBody">
-                                            <!-- Dynamically populated -->
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                            
-                            <!-- Page Features Tab -->
-                            <div class="tab-panel" id="pageTab">
-                                <div class="table-container">
-                                    <table class="features-table">
-                                        <thead>
-                                            <tr>
-                                                <th>Mã Đặc Trưng</th>
-                                                <th>Giá Trị</th>
-                                                <th>Ý Nghĩa / Mô Tả</th>
-                                                <th>Trạng Thái</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="pageFeaturesTableBody">
-                                            <!-- Dynamically populated -->
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+            <!-- Error Message -->
+            <section class="card error-section hidden" id="errorSection">
+                <div class="error-content">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <p id="errorMessage"></p>
                 </div>
             </section>
         </main>
 
         <!-- Footer -->
-        <footer class="app-footer">
-            <p>&copy; 2026. Dự án Học Máy Phân Tích & Phát Hiện URL Giả Mạo - Mô hình LightGBM.</p>
+        <footer class="footer">
+            <p>🤖 LightGBM Malicious URL Detector | v1.0</p>
         </footer>
     </div>
 
-    <!-- Script File -->
     <script src="/static/script.js"></script>
 </body>
 </html>

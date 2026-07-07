@@ -110,4 +110,5 @@ app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app:app", host="127.0.0.1", port=8000, reload=True)
+    # Chỉ theo dõi thay đổi trong thư mục app (BASE_DIR) để tránh quét thư mục .git ở ngoài gây nặng CPU
+    uvicorn.run("app:app", host="127.0.0.1", port=8000, reload=True, reload_dirs=[str(BASE_DIR)])
