@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Sơ đồ tư duy — Toàn bộ đề tài LightGBM phát hiện URL độc hại</title>
+<style>
+  body { margin: 0; }
+  svg.markmap { width: 100%; height: 100vh; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/markmap-autoloader@0.18"></script>
+</head>
+<body>
+<div class="markmap">
+<script type="text/template">
+---
+markmap:
+  maxWidth: 400
+  initialExpandLevel: 2
+  colorFreezeLevel: 2
+---
+
+# PHÁT HIỆN URL ĐỘC HẠI BẰNG LIGHTGBM
+
+## 1️⃣ Bài toán & Dữ liệu
+
+### Bài toán
+- Phân loại nhị phân: P(độc hại) ∈ [0,1] so với ngưỡng τ
+- Nhãn: **0 = độc hại**, 1 = an toàn (nhớ kỹ, dễ nhầm!)
+- Vì sao không dùng blacklist: tên miền lừa đảo sống vài giờ–vài ngày, blacklist luôn trễ
+
+### Dữ liệu (data/urls.csv)
+- 9.171 URL thô → **9.136** sau `drop_duplicates(subset="url")`
+- 4.999 độc hại / 4.172 an toàn → gần cân bằng
+- Chỉ **2.164 tên miền duy nhất** → mầm mống rò rỉ!
+- Top: google.com (1.264), youtube.com (426), pages.dev (305 — 99,7% độc), weebly.com (217 — 100% độc)
+
+### Code làm sạch
+- ```python
+  df = pd.read_csv(DATA_PATH)
+  df.columns = [c.strip().lower() for c in df.columns]
+  df = df.rename(columns={"labels": "label"})
+  df = df.drop_duplicates(subset="url")
+  ```
+
+## 2️⃣ Đặc trưng (feature_extractor.py)
+
+### 14 đặc trưng số — nhớ theo 4 nhóm
+- **Độ dài**: url_length, path_length, query_length, domain_length
+- **Đếm ký tự**: num_digits, num_special (-_@%=~!), num_url_encoded (%XX), num_params
+- **Tên miền**: entropy, subdomain_depth, tld_suspicious, is_ip_address
+- **Cấu trúc**: path_depth, has_https
+
+### Entropy Shannon (entropy.py)
+- Công thức: H(s) = −Σ p(c)·log₂ p(c)
+- ```python
+  counts = Counter(text)
+  for c in counts.values():
+      p = c / length
+      entropy -= p * math.log2(p)
+  ```
+- Ý nghĩa: tên miền sinh tự động (DGA) → entropy cao
+
+### TF-IDF ký tự n-gram
+- `analyzer="char"`, `ngram_range=(3,5)`, `max_features=5000`, `min_df=2`
+- Vì sao char không phải word: URL không có ranh giới từ
+- Bắt mẫu chuỗi bất thường, kể cả cụm ký tự lạ trong tên miền
+
+### Kiểm chứng thống kê (điểm học thuật)
+- Mann–Whitney U: phi tham số, không cần giả định phân phối chuẩn
+- Kết quả: **11/14 đặc trưng p < 0,001**
+- Effect size r (rank-biserial) đo ĐỘ LỚN khác biệt
+- Top effect size: entropy, url_length, tld_suspicious
+- Tương quan Spearman thấp giữa đa số cặp → đặc trưng bổ sung nhau
+
+## 3️⃣ Rò rỉ dữ liệu ⭐ (trọng tâm vấn đáp)
+
+### Vấn đề
+- Nhiều URL chung tên miền (TB 4,22 URL/tên miền)
+- Random split → 82,8% mẫu test có tên miền đã thấy trong train
+- TF-IDF "học thuộc" chuỗi tên miền thay vì học cấu trúc
+- Ví dụ đắt: thấy `weebly.com` trong train (100% độc) → test đoán đúng mà không hiểu gì
+
+### Giải pháp — group split
+- ```python
+  groups = X["url"].map(registered_domain)
+  gss = GroupShuffleSplit(n_splits=1, test_size=0.2,
+                          random_state=42)
+  train_idx, test_idx = next(gss.split(X, y, groups=groups))
+  ```
+- registered_domain = 2 nhãn cuối hostname
+- Kết quả: 7.962 train / 1.174 test, trùng tên miền **0%**
+- CV cũng phải group: `StratifiedGroupKFold(n_splits=5)`
+
+### Bằng chứng định lượng (mục 5.3 notebook)
+| Chỉ số | Random (rò rỉ) | Group (thật) |
+|---|---|---|
+| F1@0,5 | 0,9815 | 0,9307 |
+| ROC-AUC | 0,9983 | 0,9461 |
+| PR-AUC | 0,9986 | 0,9795 |
+
+## 4️⃣ Mô hình & Huấn luyện (train.py)
+
+### LightGBM là gì?
+- Gradient Boosting Decision Tree (Microsoft, NeurIPS 2017)
+- Công thức boosting: F_m(x) = F_(m−1)(x) + ν·h_m(x)
+- h_m khớp trên gradient của log-loss
+- **Leaf-wise** (tách lá giảm loss nhiều nhất) ≠ level-wise của XGBoost
+- **Histogram binning**: rời rạc hóa đặc trưng → nhanh, ít RAM, hợp dữ liệu thưa
+
+### Pipeline (chống rò rỉ tiền xử lý)
+- ```python
+  ColumnTransformer([
+    ("url_tfidf", TfidfVectorizer(analyzer="char",
+        ngram_range=(3,5), max_features=5000), "url"),
+    ("num", StandardScaler(with_mean=False), NUMERIC),
+  ])
+  ```
+- `with_mean=False`: giữ ma trận thưa (sparse)
+- Vì sao phải Pipeline: TF-IDF chỉ được fit trên train của từng fold
+
+### GridSearchCV
+- ```python
+  param_grid = {"clf__n_estimators": [200, 400],
+                "clf__max_depth": [6, 10, -1],
+                "clf__learning_rate": [0.05, 0.1]}
+  search.fit(X_train, y_train, groups=groups_train)
+  ```
+- 12 tổ hợp × 5 fold = 60 lần fit, scoring="f1"
+- Thắng: **lr=0,1; depth=−1; n_estimators=200**
+- Vì sao 200 thắng 400: hết đường memorize → mô hình nhẹ tổng quát tốt hơn
+
+### Baseline
+- Logistic Regression, cùng pipeline, `class_weight="balanced"`
+- CV: LGBM 0,8607±0,0601 vs LR 0,8569±0,0779
+- Paired t-test: p=0,7977 → CV chưa phân thắng bại
+- Test: LGBM 0,9307 vs LR 0,8559 → thắng rõ
+
+## 5️⃣ Đánh giá
+
+### Chỉ số trên test (1.174 URL, tên miền lạ 100%)
+- ROC-AUC **0,9461** | PR-AUC **0,9795**
+- F1@0,5 = 0,9307 → F1@τ* = **0,9402**
+
+### Tối ưu ngưỡng
+- ```python
+  prec, rec, ths = precision_recall_curve(y_true, prob)
+  f1s = 2*prec*rec / (prec+rec+1e-12)
+  best_th = ths[np.nanargmax(f1s[:-1])]
+  ```
+- τ* = **0,7624** (khi rò rỉ chỉ 0,26!)
+- Ý nghĩa: gặp toàn tên miền lạ → cần tự tin cao hơn mới kết luận độc
+
+### Ma trận nhầm lẫn @ τ*
+- 28 FP (an toàn bị chặn nhầm)
+- 71 FN (độc hại bị bỏ lọt — chủ yếu trên hosting hợp pháp)
+
+### Learning curve
+- Đường CV vẫn dốc lên → thêm dữ liệu (đa dạng tên miền) còn cải thiện được
+
+## 6️⃣ Diễn giải mô hình
+
+### Gain importance
+- = tổng mức giảm loss của mỗi đặc trưng qua mọi lần tách nút
+- Top: entropy, url_length, tld_suspicious, domain_length + vài n-gram
+
+### SHAP (TreeExplainer)
+- Phân rã mỗi dự đoán = tổng đóng góp từng đặc trưng (giá trị Shapley)
+- Đọc biểu đồ: mỗi chấm = 1 mẫu; SHAP dương = đẩy về ĐỘC HẠI
+- Quy luật học được: entropy cao + URL dài + TLD rủi ro → độc hại
+- Nhất quán với Mann–Whitney và gain → 3 nguồn độc lập khớp nhau
+
+### Phân tích lỗi
+- FP: trang hợp pháp ít tên tuổi dùng TLD rẻ, URL dài
+- FN: URL độc trên hạ tầng hợp pháp (hosting free, link rút gọn)
+
+## 7️⃣ Code trong repo (ai/)
+
+### train.py
+- Chạy: `python -m ai.train --fast`
+- Group split + StratifiedGroupKFold + GridSearchCV
+- Log "domain overlap: 0.0%" để tự kiểm chứng
+- Lưu model.pkl = {model, meta{threshold, split, feature_version...}}
+
+### predict.py
+- `predict_url(url)` → PredictionResult(probability, is_malicious, threshold, top_features)
+- Ưu tiên ngưỡng: tham số > env AI_THRESHOLD > meta best_threshold > 0,5
+- SHAP opt-in qua env AI_ENABLE_SHAP
+
+### Còn lại
+- feature_extractor.py — extract_features(url, include_page)
+- entropy.py — shannon_entropy
+- utils.py — parse_domain, SUSPICIOUS_TLDS, đếm ký tự
+- page_analyzer.py — 13 đặc trưng HTML (chưa dùng khi train, là hướng phát triển)
+
+## ❓ Vấn đáp nhanh — hỏi xoáy đáp gọn
+- **"Vì sao chọn LightGBM mà không phải deep learning?"** → dữ liệu bảng + thưa, 9k mẫu là nhỏ với DL; LightGBM nhanh, chính xác, giải thích được bằng SHAP
+- **"class_weight='balanced' làm gì?"** → đánh trọng số ngược tỷ lệ lớp trong loss, phòng lệch nhãn
+- **"Vì sao StandardScaler với with_mean=False?"** → trừ mean sẽ phá tính thưa của ma trận TF-IDF
+- **"random_state=42 để làm gì?"** → tái lập được toàn bộ thí nghiệm
+- **"F1 là gì, sao không dùng accuracy?"** → trung bình điều hòa precision/recall; accuracy dễ đánh lừa khi lệch lớp
+- **"Nếu thầy bảo 0,94 vẫn thấp?"** → 0,94 trên tên miền 100% mới là con số trung thực; 0,98–0,99 trong nhiều bài báo là số có rò rỉ (chứng minh ở mục 5.3)
+</script>
+</div>
+</body>
+</html>

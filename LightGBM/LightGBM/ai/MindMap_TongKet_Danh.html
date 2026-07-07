@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Sơ đồ tư duy — Chương 6: Tổng kết (Danh)</title>
+<style>
+  body { margin: 0; }
+  svg.markmap { width: 100%; height: 100vh; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/markmap-autoloader@0.18"></script>
+</head>
+<body>
+<div class="markmap">
+<script type="text/template">
+---
+markmap:
+  maxWidth: 380
+  initialExpandLevel: 2
+  colorFreezeLevel: 2
+---
+
+# CHƯƠNG 6: TỔNG KẾT (phần của Danh)
+
+## 6.1. Kết luận — nói gì đầu tiên?
+
+### Quy trình 5 bước (thuộc lòng)
+- 1️⃣ Thu thập + làm sạch: 9.171 URL → **9.136** sau khử trùng lặp
+- 2️⃣ Trích xuất: **14 đặc trưng số** + TF-IDF ký tự n-gram (3–5)
+- 3️⃣ Kiểm chứng thống kê: Mann–Whitney U, **11/14** đặc trưng p < 0,001
+- 4️⃣ Huấn luyện: GridSearchCV 12 tổ hợp × 5 fold
+- 5️⃣ Đánh giá + diễn giải: ROC/PR, ngưỡng tối ưu, SHAP
+
+### Bộ số liệu PHẢI nhớ
+- Tập test: **1.174 URL** — toàn tên miền **chưa từng thấy**
+- F1 @ ngưỡng 0,5: **0,9307** (LR chỉ 0,8559)
+- F1 @ ngưỡng tối ưu τ* = 0,7624: **0,9402**
+- ROC-AUC: **0,9461** | PR-AUC: **0,9795**
+- Lỗi: **28 FP** (chặn nhầm) + **71 FN** (bỏ lọt)
+
+### Điểm khác biệt lớn nhất của đề tài
+- Giao thức **chống rò rỉ dữ liệu** theo tên miền
+- GroupShuffleSplit (holdout) + StratifiedGroupKFold (CV)
+- Tỷ lệ tên miền trùng train↔test: **0%**
+- Nếu chia ngẫu nhiên: 82,8% test trùng tên miền với train
+  - F1 ảo: 0,9815 (**+0,0508** điểm ảo)
+  - ROC-AUC ảo: 0,9983 (**+0,0522**)
+
+### Kết quả trung thực về t-test (điểm cộng!)
+- Trên CV theo nhóm: p = **0,7977** → chưa đạt ý nghĩa thống kê
+- Khi có rò rỉ: p = 0,0003 (trông "đẹp" nhưng sai)
+- Bài học: giao thức trung thực → khoảng tin cậy rộng ra
+- Nhưng trên tập test độc lập: LightGBM vẫn thắng rõ (+0,075 F1)
+
+## 6.2. Đóng góp (3 ý)
+
+### 1. Phương pháp luận
+- Phát hiện + chứng minh + loại bỏ rò rỉ theo tên miền
+- Nhiều nghiên cứu báo cáo 98–99% vì dùng random split
+- Thí nghiệm đối chứng định lượng: +0,05 F1 ảo
+- Nguồn trích: Kaufman et al. 2012 — *Leakage in Data Mining* (ACM TKDD)
+
+### 2. Bộ đặc trưng được kiểm chứng
+- 3 phương pháp độc lập cùng chỉ ra 1 nhóm đặc trưng:
+  - Kiểm định Mann–Whitney U (thống kê)
+  - Gain importance (LightGBM)
+  - SHAP (Lundberg & Lee 2017)
+- Nhóm chủ đạo: **entropy tên miền, độ dài URL, TLD rủi ro**
+
+### 3. Sẵn sàng triển khai
+- model.pkl lưu kèm: ngưỡng τ*, feature_version, giao thức chia, best params
+- Suy luận vài mili-giây/URL (histogram-based)
+- Nguồn trích: Ke et al. 2017 — bài báo gốc LightGBM (NeurIPS)
+
+## 6.3. Hạn chế (4 ý — tự nói trước khi thầy hỏi)
+
+### Lệch tỷ lệ lớp
+- Test 72% độc hại vs 55% toàn cục
+- Lý do: google.com, youtube.com nằm trọn bên train
+- Vì group split **không phân tầng được theo nhãn**
+
+### Xấp xỉ tên miền còn thô
+- Lấy 2 nhãn cuối hostname → sai với co.uk, com.vn
+- Khắc phục: thư viện tldextract + Public Suffix List
+
+### Bỏ lọt URL trên hạ tầng hợp pháp
+- 71 FN chủ yếu là URL độc trên hosting miễn phí, link rút gọn
+- Tín hiệu cấu trúc URL không đủ → cần đặc trưng nội dung trang
+
+### Concept drift
+- Dữ liệu 1 thời điểm; mẫu lừa đảo đổi nhanh
+- Cần tái huấn luyện định kỳ
+
+## 6.4. Hướng phát triển (4 ý)
+- Đặc trưng nội dung trang — module **page_analyzer** có sẵn 13 đặc trưng HTML
+- Time-based split + tái huấn luyện với dữ liệu phản hồi
+- WHOIS (tuổi tên miền) + thống kê lạm dụng TLD (Spamhaus)
+- So sánh XGBoost / CatBoost / CNN-Transformer **dưới cùng giao thức group split**
+
+## ❓ Câu hỏi vấn đáp dự kiến
+
+### "Vì sao F1 CV chỉ 0,86 mà F1 test 0,94?"
+- CV theo nhóm: mỗi fold chứa tổ hợp tên miền khác nhau → phương sai lớn (±0,06)
+- Test là MỘT lần đo trên MỘT cách chia cụ thể
+- 0,94 nằm trong khoảng dao động của CV → không mâu thuẫn
+
+### "p = 0,79 thì sao dám nói LightGBM tốt hơn LR?"
+- Trả lời thẳng: trên CV chưa đủ bằng chứng thống kê
+- Nhưng trên test độc lập LightGBM hơn rõ: 0,9307 vs 0,8559
+- Và báo cáo trung thực điều này thay vì giấu — đó là đóng góp
+
+### "Rò rỉ dữ liệu là gì? Vì sao 0,98 là ảo?"
+- 9.136 URL / chỉ 2.164 tên miền → TB 4,22 URL/tên miền
+- Random split: 82,8% test trùng tên miền với train
+- TF-IDF ký tự "học thuộc" chuỗi tên miền (vd weebly.com → 100% độc hại)
+- Thực tế tên miền lừa đảo luôn MỚI → số 0,93 mới là năng lực thật
+
+### "Vì sao ngưỡng tối ưu là 0,76 mà không phải 0,5?"
+- Quét đường Precision–Recall, chọn τ cực đại hóa F1
+- Ngưỡng khi có rò rỉ chỉ 0,26 → nếu dùng sẽ chặn nhầm hàng loạt
+- Ngưỡng cao = cần tự tin hơn mới kết luận độc hại (vì tên miền toàn lạ)
+
+### "Vì sao tham số tốt nhất chỉ 200 cây, không phải 400?"
+- Khi không thể học thuộc tên miền, mô hình nhẹ tổng quát hóa tốt hơn
+- Có rò rỉ thì 400 cây thắng (vì memorization được thưởng điểm)
+
+### "Hạn chế lớn nhất của đề tài?"
+- Chọn 1 trong 4 ở mục 6.3, khuyên nói: bỏ lọt URL trên hạ tầng hợp pháp
+- Vì nó dẫn thẳng đến hướng phát triển (đặc trưng nội dung trang)
+
+## 📚 Trích dẫn — luận điểm nào dùng nguồn nào?
+- LightGBM nhanh/chính xác → Ke et al. 2017 (NeurIPS)
+- SHAP có cơ sở lý thuyết → Lundberg & Lee 2017 (arXiv 1705.07874)
+- Group split là chuẩn công cụ → scikit-learn docs (cross_validation)
+- Rò rỉ là lỗi có tên tuổi → Kaufman et al. 2012 (ACM TKDD)
+- TLD rẻ bị lạm dụng → Spamhaus reputation statistics
+- Tên miền đăng ký chuẩn → Mozilla Public Suffix List
+</script>
+</div>
+</body>
+</html>

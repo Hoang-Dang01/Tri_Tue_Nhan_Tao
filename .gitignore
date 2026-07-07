@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.gemini/
+.ipynb_checkpoints/
+.vs/
+.vscode/
+venv/
+.venv/
+env/
+.env
+*.log
+.claude/
