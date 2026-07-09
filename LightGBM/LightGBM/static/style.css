@@ -211,7 +211,7 @@ td {
 }
 
 tr:hover { background: rgba(255, 255, 255, 0.02); }
-td:last-child { text-align: center; }
+th:nth-child(2), td:nth-child(2) { text-align: right; }
 
 .error-section {
     background: rgba(239, 68, 68, 0.1);
